@@ -4,24 +4,26 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::{MtuLimit, ServiceLevel};
+
 /// Quality of Service configuration for a partition.
 ///
 /// # Examples
 ///
 /// ```
-/// use ufm_client::types::QosConfig;
+/// use ufm_client::types::{MtuLimit, QosConfig, ServiceLevel};
 ///
 /// let qos = QosConfig::builder()
-///     .mtu_limit(4)
+///     .mtu_limit(MtuLimit::Mtu2048)
 ///     .rate_limit(300.0)
-///     .service_level(3)
+///     .service_level(ServiceLevel::SL3)
 ///     .build();
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct QosConfig {
-    /// MTU limit (1-5, where 5 = 4096 bytes)
+    /// MTU limit (256, 512, 1024, 2048, or 4096 bytes)
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mtu_limit: Option<u8>,
+    pub mtu_limit: Option<MtuLimit>,
 
     /// Rate limit in Gbps (e.g., 2.5, 300.0)
     #[serde(alias = "Rate_limit", skip_serializing_if = "Option::is_none")]
@@ -29,7 +31,7 @@ pub struct QosConfig {
 
     /// Service level (0-15)
     #[serde(alias = "Service_level", skip_serializing_if = "Option::is_none")]
-    pub service_level: Option<u8>,
+    pub service_level: Option<ServiceLevel>,
 }
 
 impl QosConfig {
@@ -47,22 +49,25 @@ impl QosConfig {
 /// Builder for QoS configuration.
 #[derive(Debug, Default)]
 pub struct QosConfigBuilder {
-    mtu_limit: Option<u8>,
+    mtu_limit: Option<MtuLimit>,
     rate_limit: Option<f64>,
-    service_level: Option<u8>,
+    service_level: Option<ServiceLevel>,
 }
 
 impl QosConfigBuilder {
-    /// Set the MTU limit (1-5).
+    /// Set the MTU limit.
     ///
-    /// MTU values:
-    /// - 1 = 256 bytes
-    /// - 2 = 512 bytes
-    /// - 3 = 1024 bytes
-    /// - 4 = 2048 bytes
-    /// - 5 = 4096 bytes
-    pub fn mtu_limit(mut self, value: u8) -> Self {
-        self.mtu_limit = Some(value.clamp(1, 5));
+    /// # Examples
+    ///
+    /// ```
+    /// use ufm_client::types::{MtuLimit, QosConfig};
+    ///
+    /// let qos = QosConfig::builder()
+    ///     .mtu_limit(MtuLimit::Mtu2048)
+    ///     .build();
+    /// ```
+    pub fn mtu_limit(mut self, value: MtuLimit) -> Self {
+        self.mtu_limit = Some(value);
         self
     }
 
@@ -72,9 +77,19 @@ impl QosConfigBuilder {
         self
     }
 
-    /// Set the service level (0-15).
-    pub fn service_level(mut self, value: u8) -> Self {
-        self.service_level = Some(value.clamp(0, 15));
+    /// Set the service level.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use ufm_client::types::{QosConfig, ServiceLevel};
+    ///
+    /// let qos = QosConfig::builder()
+    ///     .service_level(ServiceLevel::SL3)
+    ///     .build();
+    /// ```
+    pub fn service_level(mut self, value: ServiceLevel) -> Self {
+        self.service_level = Some(value);
         self
     }
 
@@ -95,14 +110,14 @@ mod tests {
     #[test]
     fn test_qos_builder() {
         let qos = QosConfig::builder()
-            .mtu_limit(4)
+            .mtu_limit(MtuLimit::Mtu2048)
             .rate_limit(300.0)
-            .service_level(3)
+            .service_level(ServiceLevel::SL3)
             .build();
 
-        assert_eq!(qos.mtu_limit, Some(4));
+        assert_eq!(qos.mtu_limit, Some(MtuLimit::Mtu2048));
         assert_eq!(qos.rate_limit, Some(300.0));
-        assert_eq!(qos.service_level, Some(3));
+        assert_eq!(qos.service_level, Some(ServiceLevel::SL3));
     }
 
     #[test]
@@ -112,14 +127,27 @@ mod tests {
     }
 
     #[test]
-    fn test_qos_mtu_clamped() {
-        let qos = QosConfig::builder().mtu_limit(10).build();
-        assert_eq!(qos.mtu_limit, Some(5));
+    fn test_qos_serialization() {
+        let qos = QosConfig::builder()
+            .mtu_limit(MtuLimit::Mtu2048)
+            .service_level(ServiceLevel::SL5)
+            .rate_limit(100.0)
+            .build();
+
+        let json = serde_json::to_value(&qos).unwrap();
+        // Verify we serialize to numeric values for API compatibility
+        assert_eq!(json["mtu_limit"], 4);
+        assert_eq!(json["service_level"], 5);
+        assert_eq!(json["rate_limit"], 100.0);
     }
 
     #[test]
-    fn test_qos_service_level_clamped() {
-        let qos = QosConfig::builder().service_level(20).build();
-        assert_eq!(qos.service_level, Some(15));
+    fn test_qos_deserialization() {
+        let json = r#"{"mtu_limit": 3, "service_level": 7, "rate_limit": 50.0}"#;
+        let qos: QosConfig = serde_json::from_str(json).unwrap();
+
+        assert_eq!(qos.mtu_limit, Some(MtuLimit::Mtu1024));
+        assert_eq!(qos.service_level, Some(ServiceLevel::SL7));
+        assert_eq!(qos.rate_limit, Some(50.0));
     }
 }

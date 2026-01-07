@@ -40,7 +40,7 @@ use serde_json::json;
 
 use crate::client::UfmClient;
 use crate::error::Result;
-use crate::types::{Guid, Membership, PartitionDetails, Pkey, QosConfig};
+use crate::types::{Guid, Membership, MtuLimit, PartitionDetails, Pkey, QosConfig, ServiceLevel};
 
 /// API path for pkeys endpoint.
 const PKEYS_PATH: &str = "/resources/pkeys";
@@ -227,13 +227,13 @@ impl<'a> PkeysApi<'a> {
     ///
     /// ```no_run
     /// # use ufm_client::UfmClient;
-    /// # use ufm_client::types::{Pkey, QosConfig};
+    /// # use ufm_client::types::{MtuLimit, Pkey, QosConfig, ServiceLevel};
     /// # async fn example(client: &UfmClient) -> Result<(), Box<dyn std::error::Error>> {
     /// let pkey: Pkey = "0x12".parse()?;
     /// let qos = QosConfig::builder()
-    ///     .mtu_limit(4)
+    ///     .mtu_limit(MtuLimit::Mtu2048)
     ///     .rate_limit(300.0)
-    ///     .service_level(3)
+    ///     .service_level(ServiceLevel::SL3)
     ///     .build();
     /// client.pkeys().set_qos(&pkey, &qos).await?;
     /// # Ok(())
@@ -242,8 +242,8 @@ impl<'a> PkeysApi<'a> {
     pub async fn set_qos(&self, pkey: &Pkey, qos: &QosConfig) -> Result<()> {
         let body = json!({
             "pkey": pkey.as_hex_string(),
-            "mtu_limit": qos.mtu_limit,
-            "service_level": qos.service_level,
+            "mtu_limit": qos.mtu_limit.map(|m| m.as_u8()),
+            "service_level": qos.service_level.map(|s| s.as_u8()),
             "rate_limit": qos.rate_limit
         });
         self.client
@@ -275,8 +275,8 @@ pub struct CreatePkeyBuilder<'a> {
     pkey: Pkey,
     ip_over_ib: Option<bool>,
     index0: Option<bool>,
-    mtu_limit: Option<u8>,
-    service_level: Option<u8>,
+    mtu_limit: Option<MtuLimit>,
+    service_level: Option<ServiceLevel>,
     rate_limit: Option<f64>,
 }
 
@@ -308,15 +308,47 @@ impl<'a> CreatePkeyBuilder<'a> {
         self
     }
 
-    /// Set the MTU limit (1-5).
-    pub fn mtu_limit(mut self, value: u8) -> Self {
-        self.mtu_limit = Some(value.clamp(1, 5));
+    /// Set the MTU limit.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ufm_client::UfmClient;
+    /// # use ufm_client::types::{MtuLimit, Pkey};
+    /// # async fn example(client: &UfmClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let pkey: Pkey = "0x12".parse()?;
+    /// client.pkeys()
+    ///     .create(&pkey)
+    ///     .mtu_limit(MtuLimit::Mtu2048)
+    ///     .send()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn mtu_limit(mut self, value: MtuLimit) -> Self {
+        self.mtu_limit = Some(value);
         self
     }
 
-    /// Set the service level (0-15).
-    pub fn service_level(mut self, value: u8) -> Self {
-        self.service_level = Some(value.clamp(0, 15));
+    /// Set the service level.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use ufm_client::UfmClient;
+    /// # use ufm_client::types::{Pkey, ServiceLevel};
+    /// # async fn example(client: &UfmClient) -> Result<(), Box<dyn std::error::Error>> {
+    /// let pkey: Pkey = "0x12".parse()?;
+    /// client.pkeys()
+    ///     .create(&pkey)
+    ///     .service_level(ServiceLevel::SL3)
+    ///     .send()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn service_level(mut self, value: ServiceLevel) -> Self {
+        self.service_level = Some(value);
         self
     }
 
@@ -342,10 +374,10 @@ impl<'a> CreatePkeyBuilder<'a> {
             body["index0"] = json!(index0);
         }
         if let Some(mtu) = self.mtu_limit {
-            body["mtu_limit"] = json!(mtu);
+            body["mtu_limit"] = json!(mtu.as_u8());
         }
         if let Some(sl) = self.service_level {
-            body["service_level"] = json!(sl);
+            body["service_level"] = json!(sl.as_u8());
         }
         if let Some(rate) = self.rate_limit {
             body["rate_limit"] = json!(rate);
@@ -368,8 +400,8 @@ pub struct AddGuidsBuilder<'a, 'b> {
     memberships: Option<Vec<Membership>>,
     ip_over_ib: Option<bool>,
     index0: Option<bool>,
-    mtu_limit: Option<u8>,
-    service_level: Option<u8>,
+    mtu_limit: Option<MtuLimit>,
+    service_level: Option<ServiceLevel>,
     rate_limit: Option<f64>,
 }
 
@@ -417,15 +449,15 @@ impl<'a, 'b> AddGuidsBuilder<'a, 'b> {
         self
     }
 
-    /// Set the MTU limit (1-5).
-    pub fn mtu_limit(mut self, value: u8) -> Self {
-        self.mtu_limit = Some(value.clamp(1, 5));
+    /// Set the MTU limit.
+    pub fn mtu_limit(mut self, value: MtuLimit) -> Self {
+        self.mtu_limit = Some(value);
         self
     }
 
-    /// Set the service level (0-15).
-    pub fn service_level(mut self, value: u8) -> Self {
-        self.service_level = Some(value.clamp(0, 15));
+    /// Set the service level.
+    pub fn service_level(mut self, value: ServiceLevel) -> Self {
+        self.service_level = Some(value);
         self
     }
 
@@ -459,10 +491,10 @@ impl<'a, 'b> AddGuidsBuilder<'a, 'b> {
             body["index0"] = json!(index0);
         }
         if let Some(mtu) = self.mtu_limit {
-            body["mtu_limit"] = json!(mtu);
+            body["mtu_limit"] = json!(mtu.as_u8());
         }
         if let Some(sl) = self.service_level {
-            body["service_level"] = json!(sl);
+            body["service_level"] = json!(sl.as_u8());
         }
         if let Some(rate) = self.rate_limit {
             body["rate_limit"] = json!(rate);

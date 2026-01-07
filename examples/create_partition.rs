@@ -13,7 +13,7 @@
 
 use std::env;
 
-use ufm_client::types::Pkey;
+use ufm_client::types::{MtuLimit, Pkey, ServiceLevel};
 use ufm_client::{Auth, UfmClient};
 
 #[tokio::main]
@@ -51,8 +51,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .pkeys()
         .create(&pkey)
         .ip_over_ib(true) // Enable IP over InfiniBand
-        .mtu_limit(4) // Set MTU limit (1-5, where 4 = 2048 bytes)
-        .service_level(0) // Set service level (0-15)
+        .mtu_limit(MtuLimit::Mtu2048) // Set MTU limit (2048 bytes)
+        .service_level(ServiceLevel::SL0) // Set service level (0)
         .rate_limit(100.0) // Set rate limit in Gbps
         .send()
         .await?;

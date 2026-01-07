@@ -93,36 +93,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  - {pkey}");
     }
 
-    // Example: Create a new partition key (commented out to avoid side effects)
-    /*
-    println!("\n=== Creating PKey 0x42 ===");
-    let new_pkey: Pkey = "0x42".parse()?;
-    client.pkeys()
-        .create(&new_pkey)
-        .ip_over_ib(true)
-        .send()
-        .await?;
-    println!("Created partition key: {}", new_pkey);
-    */
-
-    // Example: Add GUIDs to a partition (commented out to avoid side effects)
-    /*
-    println!("\n=== Adding GUIDs to PKey ===");
-    let guid1: Guid = "0002c903000e0b72".parse()?;
-    let guid2: Guid = "0002c903000e0b73".parse()?;
-    client.pkeys()
-        .add_guids(&new_pkey, &[guid1, guid2])
-        .membership(Membership::Full)
-        .ip_over_ib(true)
-        .send()
-        .await?;
-    println!("Added 2 GUIDs with full membership");
-    */
-
-    // Get details of the first partition key (if any)
-    if let Some(first_pkey) = pkeys.first() {
-        println!("\n=== Details for {first_pkey} ===");
-        let details = client.pkeys().get(first_pkey).await?;
+    // Get details of the partition keys (if any)
+    for pkey in &pkeys {
+        println!("\n=== Details for {pkey} ===");
+        let details = client.pkeys().get(pkey).await?;
         println!("Partition name: {}", details.partition);
         println!("IP over IB: {}", details.ip_over_ib);
         println!("Members: {} GUIDs", details.guids.len());
