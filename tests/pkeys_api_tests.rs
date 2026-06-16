@@ -65,6 +65,23 @@ async fn test_get_pkey_details() {
 }
 
 #[tokio::test]
+async fn test_get_pkey_missing_returns_not_found() {
+    let mock_server = MockServer::start().await;
+
+    // UFM answers a nonexistent pkey with `200 {}` rather than 404.
+    Mock::given(method("GET"))
+        .and(path("/ufmRestV2/resources/pkeys/0x99"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(&mock_server)
+        .await;
+
+    let client = create_test_client(&mock_server).await;
+    let pkey: Pkey = "0x99".parse().unwrap();
+    let err = client.pkeys().get(&pkey).await.unwrap_err();
+    assert!(err.is_not_found(), "expected NotFound, got {err:?}");
+}
+
+#[tokio::test]
 async fn test_create_pkey() {
     let mock_server = MockServer::start().await;
 

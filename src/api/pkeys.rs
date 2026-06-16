@@ -39,7 +39,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::client::UfmClient;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::types::{Guid, Membership, MtuLimit, PartitionDetails, Pkey, QosConfig, ServiceLevel};
 
 /// API path for pkeys endpoint.
@@ -120,7 +120,13 @@ impl<'a> PkeysApi<'a> {
     /// ```
     pub async fn get(&self, pkey: &Pkey) -> Result<PartitionDetails> {
         let path = format!("{PKEYS_PATH}/{pkey}");
-        self.client.get(&path).await
+        // UFM answers a nonexistent pkey with `200 {}` rather than 404, which won't deserialize
+        // into PartitionDetails. Parse leniently and treat a body with no `partition` as not found.
+        let value: serde_json::Value = self.client.get(&path).await?;
+        if value.get("partition").is_none() {
+            return Err(Error::not_found(format!("pkey {pkey}")));
+        }
+        serde_json::from_value(value).map_err(Error::from)
     }
 
     /// Create a new empty partition key.
