@@ -1,6 +1,6 @@
 # ufm-client
 
-A Rust client library for [NVIDIA's Unified Fabric Manager (UFM)](https://www.nvidia.com/en-us/networking/infiniband/ufm/) REST API.
+A Rust client library for NVIDIA's Unified Fabric Manager (UFM) REST API.
 
 ## Features
 
