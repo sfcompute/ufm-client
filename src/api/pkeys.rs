@@ -119,7 +119,7 @@ impl<'a> PkeysApi<'a> {
     /// # }
     /// ```
     pub async fn get(&self, pkey: &Pkey) -> Result<PartitionDetails> {
-        let path = format!("{PKEYS_PATH}/{pkey}");
+        let path = format!("{PKEYS_PATH}/{pkey}?guids_data=true");
         // UFM answers a nonexistent pkey with `200 {}` rather than 404, which won't deserialize
         // into PartitionDetails. Parse leniently and treat a body with no `partition` as not found.
         let value: serde_json::Value = self.client.get(&path).await?;
@@ -188,14 +188,13 @@ impl<'a> PkeysApi<'a> {
     /// # }
     /// ```
     pub async fn remove_guids(&self, pkey: &Pkey, guids: &[Guid]) -> Result<()> {
-        let guid_strings: Vec<&str> = guids.iter().map(|g| g.as_str()).collect();
-        let body = json!({
-            "pkey": pkey.as_hex_string(),
-            "guids": guid_strings
-        });
-        self.client
-            .delete_with_body::<serde_json::Value>(PKEYS_PATH, body)
-            .await?;
+        let guid_list = guids
+            .iter()
+            .map(|g| g.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        let path = format!("{PKEYS_PATH}/{pkey}/guids/{guid_list}");
+        self.client.delete::<serde_json::Value>(&path).await?;
         Ok(())
     }
 
@@ -252,9 +251,8 @@ impl<'a> PkeysApi<'a> {
             "service_level": qos.service_level.map(|s| s.as_u8()),
             "rate_limit": qos.rate_limit
         });
-        self.client
-            .put::<serde_json::Value>(PKEYS_PATH, body)
-            .await?;
+        let path = format!("{PKEYS_PATH}/qos_conf");
+        self.client.put::<serde_json::Value>(&path, body).await?;
         Ok(())
     }
 
@@ -286,7 +284,7 @@ pub struct CreatePkeyBuilder<'a> {
     rate_limit: Option<f64>,
 }
 
-/// Path for creating empty pkeys (V1 API).
+/// Path for creating empty pkeys.
 const PKEYS_ADD_PATH: &str = "/resources/pkeys/add";
 
 impl<'a> CreatePkeyBuilder<'a> {
@@ -366,8 +364,8 @@ impl<'a> CreatePkeyBuilder<'a> {
 
     /// Execute the create operation.
     ///
-    /// This uses the V1 API endpoint (`/ufmRest/resources/pkeys/add`) which
-    /// supports creating empty partitions without any GUIDs.
+    /// This uses the `/resources/pkeys/add` endpoint, which supports creating
+    /// empty partitions without any GUIDs.
     pub async fn send(self) -> Result<()> {
         let mut body = json!({
             "pkey": self.pkey.as_hex_string()

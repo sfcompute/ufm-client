@@ -163,17 +163,6 @@ impl UfmClient {
             .await
     }
 
-    /// Execute a DELETE request with a body.
-    pub(crate) async fn delete_with_body<T>(&self, path: &str, body: serde_json::Value) -> Result<T>
-    where
-        T: DeserializeOwned,
-    {
-        let url = self.url(path)?;
-        self.http
-            .execute(Method::DELETE, url, self.auth.as_ref(), Some(body))
-            .await
-    }
-
     // ========== API Accessors ==========
 
     /// Access the partition keys (PKeys) API.
