@@ -14,7 +14,8 @@
 //! let client = UfmClient::builder()
 //!     .base_url("https://ufm-server")
 //!     .auth(Auth::basic("admin", "password"))
-//!     .verify_ssl(false) // For self-signed certificates
+//!     // Trust only a private root CA that signed UFM's certificate
+//!     .root_certificates_pem(std::fs::read("root-ca.pem")?)
 //!     .build()?;
 //!
 //! // Get UFM version

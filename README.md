@@ -32,7 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = UfmClient::builder()
         .base_url("https://ufm-server")
         .auth(Auth::basic("admin", "password"))
-        .verify_ssl(false)  // For self-signed certificates
+        .root_certificates_pem(std::fs::read("root-ca.pem")?)  // Private root CA for UFM's certificate
         .build()?;
 
     // Get UFM version
@@ -72,9 +72,12 @@ let client = UfmClient::builder()
     .auth(Auth::basic("user", "pass"))  // or Auth::token("...")
     .timeout(Duration::from_secs(60))
     .max_retries(3)
-    .verify_ssl(false)
+    .root_certificates_pem(std::fs::read("root-ca.pem")?)  // trust only these roots
     .build()?;
 ```
+
+`root_certificates_pem` trusts only the given PEM bundle and still verifies the chain and the host or IP in
+the URL. `verify_ssl(false)` disables certificate verification entirely and cannot be combined with it.
 
 ### Partition Keys (PKeys)
 

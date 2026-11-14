@@ -260,6 +260,8 @@ impl UfmClient {
 /// - [`timeout`](Self::timeout) - Request timeout (defaults to 30 seconds)
 /// - [`max_retries`](Self::max_retries) - Retry count for transient failures (defaults to 3)
 /// - [`verify_ssl`](Self::verify_ssl) - SSL certificate verification (defaults to `true`)
+/// - [`root_certificates_pem`](Self::root_certificates_pem) - Trust only the given root CA(s),
+///   for UFM servers whose certificate is signed by a private CA
 ///
 /// # Examples
 ///
@@ -271,7 +273,20 @@ impl UfmClient {
 ///     .base_url("https://ufm-server")
 ///     .auth(Auth::basic("admin", "password"))
 ///     .timeout(Duration::from_secs(60))
-///     .verify_ssl(false) // For self-signed certs
+///     .build()
+///     .expect("Failed to create client");
+/// ```
+///
+/// Verifying a UFM certificate signed by a private root CA:
+///
+/// ```no_run
+/// use ufm_client::{UfmClient, Auth};
+///
+/// let root_ca_pem = std::fs::read("root-ca.pem").expect("Failed to read root CA");
+/// let client = UfmClient::builder()
+///     .base_url("https://ufm-server")
+///     .auth(Auth::basic("admin", "password"))
+///     .root_certificates_pem(root_ca_pem)
 ///     .build()
 ///     .expect("Failed to create client");
 /// ```
@@ -283,6 +298,7 @@ pub struct UfmClientBuilder {
     timeout: Option<Duration>,
     max_retries: Option<u32>,
     verify_ssl: Option<bool>,
+    root_certificates_pem: Option<Vec<u8>>,
 }
 
 impl UfmClientBuilder {
@@ -330,7 +346,8 @@ impl UfmClientBuilder {
 
     /// Set whether to verify SSL certificates.
     ///
-    /// Set to `false` to allow self-signed certificates.
+    /// Set to `false` to accept any certificate. Prefer
+    /// [`root_certificates_pem`](Self::root_certificates_pem) for servers with a private CA.
     ///
     /// # Security Warning
     ///
@@ -342,6 +359,17 @@ impl UfmClientBuilder {
         self
     }
 
+    /// Trust only the root certificates in this PEM bundle.
+    ///
+    /// The server certificate must chain to one of these roots and match the host or IP in
+    /// the base URL; the system and built-in roots are not trusted. [`build`](Self::build)
+    /// fails if the bundle holds no certificates or is combined with `verify_ssl(false)`.
+    #[must_use]
+    pub fn root_certificates_pem(mut self, pem: impl Into<Vec<u8>>) -> Self {
+        self.root_certificates_pem = Some(pem.into());
+        self
+    }
+
     /// Build the client.
     ///
     /// # Errors
@@ -350,6 +378,7 @@ impl UfmClientBuilder {
     /// - No base URL was provided
     /// - No authentication was provided
     /// - The base URL is invalid
+    /// - The root certificates PEM is invalid, empty, or combined with `verify_ssl(false)`
     /// - The HTTP client could not be created
     pub fn build(self) -> Result<UfmClient> {
         let base_url_str = self
@@ -370,10 +399,17 @@ impl UfmClientBuilder {
             base_url.set_path(&format!("{}/", base_url.path()));
         }
 
+        if self.root_certificates_pem.is_some() && self.verify_ssl == Some(false) {
+            return Err(Error::configuration(
+                "root_certificates_pem cannot be combined with verify_ssl(false)",
+            ));
+        }
+
         let http_config = HttpConfig {
             timeout: self.timeout.unwrap_or(Duration::from_secs(30)),
             max_retries: self.max_retries.unwrap_or(3),
             verify_ssl: self.verify_ssl.unwrap_or(true),
+            root_certificates_pem: self.root_certificates_pem,
             ..Default::default()
         };
 
