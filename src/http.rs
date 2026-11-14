@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use reqwest::{Client as ReqwestClient, Method, Response, StatusCode};
+use reqwest::{Certificate, Client as ReqwestClient, Method, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use tracing::{debug, error, trace, warn};
 use url::Url;
@@ -33,6 +33,8 @@ pub struct HttpConfig {
     pub retry_delay: Duration,
     /// Whether to verify SSL certificates
     pub verify_ssl: bool,
+    /// PEM bundle of the only roots to trust; `None` uses the default roots
+    pub root_certificates_pem: Option<Vec<u8>>,
 }
 
 impl Default for HttpConfig {
@@ -42,6 +44,7 @@ impl Default for HttpConfig {
             max_retries: DEFAULT_MAX_RETRIES,
             retry_delay: Duration::from_millis(DEFAULT_RETRY_DELAY_MS),
             verify_ssl: true,
+            root_certificates_pem: None,
         }
     }
 }
@@ -56,12 +59,25 @@ pub(crate) struct HttpClient {
 impl HttpClient {
     /// Create a new HTTP client with the given configuration.
     pub fn new(config: HttpConfig) -> Result<Self> {
-        let client = ReqwestClient::builder()
+        let mut builder = ReqwestClient::builder()
             .timeout(config.timeout)
             .danger_accept_invalid_certs(!config.verify_ssl)
-            .pool_max_idle_per_host(10)
-            .build()
-            .map_err(Error::Http)?;
+            .pool_max_idle_per_host(10);
+        if let Some(pem) = &config.root_certificates_pem {
+            let roots = Certificate::from_pem_bundle(pem)
+                .map_err(|e| Error::configuration(format!("Invalid root certificates PEM: {e}")))?;
+            if roots.is_empty() {
+                return Err(Error::configuration(
+                    "root certificates PEM contains no certificates",
+                ));
+            }
+            builder = roots
+                .into_iter()
+                .fold(builder.tls_built_in_root_certs(false), |b, root| {
+                    b.add_root_certificate(root)
+                });
+        }
+        let client = builder.build().map_err(Error::Http)?;
 
         Ok(Self { client, config })
     }
