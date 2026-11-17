@@ -59,7 +59,10 @@ pub(crate) struct HttpClient {
 impl HttpClient {
     /// Create a new HTTP client with the given configuration.
     pub fn new(config: HttpConfig) -> Result<Self> {
+        // Explicit so that a dependent enabling reqwest's native-tls doesn't switch the backend:
+        // OpenSSL rejects an intermediate as the only trust anchor, which rustls accepts.
         let mut builder = ReqwestClient::builder()
+            .use_rustls_tls()
             .timeout(config.timeout)
             .danger_accept_invalid_certs(!config.verify_ssl)
             .pool_max_idle_per_host(10);

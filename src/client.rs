@@ -359,11 +359,13 @@ impl UfmClientBuilder {
         self
     }
 
-    /// Trust only the root certificates in this PEM bundle.
+    /// Trust only the CA certificates in this PEM bundle.
     ///
-    /// The server certificate must chain to one of these roots and match the host or IP in
-    /// the base URL; the system and built-in roots are not trusted. [`build`](Self::build)
-    /// fails if the bundle holds no certificates or is combined with `verify_ssl(false)`.
+    /// The server certificate must chain to one of these certificates and match the host or IP
+    /// in the base URL; the system and built-in roots are not trusted. A certificate here need
+    /// not be self-signed: an intermediate ends the chain, so a server cert from another CA under
+    /// the same root is rejected. [`build`](Self::build) fails if the bundle holds no
+    /// certificates or is combined with `verify_ssl(false)`.
     #[must_use]
     pub fn root_certificates_pem(mut self, pem: impl Into<Vec<u8>>) -> Self {
         self.root_certificates_pem = Some(pem.into());
